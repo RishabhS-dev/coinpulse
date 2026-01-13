@@ -1,0 +1,98 @@
+import React from 'react'
+import { fetcher } from '@/lib/coingecko.actions'
+import Link from 'next/link'
+import { ArrowUpRight } from 'lucide-react'
+import { formatCurrency } from '@/lib/utils'
+import Converter from '@/components/Converter'
+
+const Page = async ({ params }: { params: { id: string } }) => {
+  const { id } = params
+
+  const [coinData] = await Promise.all([
+    fetcher<CoinDetailsData>(`coins/${id}`),
+  ])
+
+  const coinDetails = [
+    {
+      label: 'Market Cap',
+      value: formatCurrency(
+        coinData.market_data.market_cap.usd
+      ),
+    },
+    {
+      label: 'Market Cap Rank',
+      value: `# ${coinData.market_cap_rank}`,
+    },
+    {
+      label: 'Total Volume',
+      value: formatCurrency(
+        coinData.market_data.total_volume.usd
+      ),
+    },
+    {
+      label: 'Website',
+      value: '-',
+      link: coinData.links.homepage[0],
+      linkText: 'Homepage',
+    },
+    {
+      label: 'Explorer',
+      value: '-',
+      link: coinData.links.blockchain_site[0],
+      linkText: 'Explorer',
+    },
+    {
+      label: 'Community',
+      value: '-',
+      link: coinData.links.subreddit_url,
+      linkText: 'Community',
+    },
+  ]
+
+  return (
+    <main id="coin-details-page">
+      <section className="primary">
+        <h2 className="text-xl font-bold">
+          {coinData.name}
+        </h2>
+      </section>
+
+      <section className="secondary">
+        <Converter
+          symbol={coinData.symbol}
+          icon={coinData.image.small}
+          priceList={coinData.market_data.current_price}
+        />
+
+        <div className="details">
+          <h4>Coin Details</h4>
+
+          <ul className="details-grid">
+            {coinDetails.map(
+              ({ label, value, link, linkText }, index) => (
+                <li key={index}>
+                  <p className={label}>{label}</p>
+
+                  {link ? (
+                    <div className="link">
+                      <Link href={link} target="_blank">
+                        {linkText || label}
+                      </Link>
+                      <ArrowUpRight size={16} />
+                    </div>
+                  ) : (
+                    <p className="text-base font-medium">
+                      {value}
+                    </p>
+                  )}
+                </li>
+              )
+            )}
+          </ul>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+export default Page
