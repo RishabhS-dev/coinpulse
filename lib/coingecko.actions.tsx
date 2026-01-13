@@ -1,81 +1,55 @@
-'use server';
+'use server'
 
-import qs from 'query-string';
+import qs from 'query-string'
 
-type QueryParams = Record<string, string | number | undefined>;
+type QueryParams = Record<string, string | number | undefined>
 
-interface CoinGeckoErrorBody {
-  error?: string;
+const BASE_URL = process.env.COINGECKO_BASE_URL
+
+if (!BASE_URL) {
+  throw new Error('Missing COINGECKO_BASE_URL in .env.local')
 }
 
-interface PoolData {
-  id: string;
-  address: string;
-  name: string;
-  network: string;
-}
-
-const BASE_URL = process.env.COINGECKO_BASE_URL;
-const API_KEY = process.env.COINGECKO_API_KEY;
-
-if (!BASE_URL) throw new Error('Could not get base url');
-if (!API_KEY) throw new Error('Could not get api key');
-
+/**
+ * Public CoinGecko Fetcher (FREE PLAN SAFE)
+ */
 export async function fetcher<T>(
   endpoint: string,
   params?: QueryParams,
-  revalidate = 60,
+  revalidate = 60
 ): Promise<T> {
+  // remove accidental leading slash
+  const safeEndpoint = endpoint.startsWith('/')
+    ? endpoint.slice(1)
+    : endpoint
+
   const url = qs.stringifyUrl(
     {
-      url: `${BASE_URL}/${endpoint}`,
+      url: `${BASE_URL}/${safeEndpoint}`,
       query: params,
     },
-    { skipEmptyString: true, skipNull: true },
-  );
+    { skipEmptyString: true, skipNull: true }
+  )
 
   const response = await fetch(url, {
-    headers: {
-      'x-cg-pro-api-key': API_KEY,
-      'Content-Type': 'application/json',
-    } as Record<string, string>,
     next: { revalidate },
-  });
+  })
 
   if (!response.ok) {
-    const errorBody: CoinGeckoErrorBody = await response.json().catch(() => ({}));
-
-    throw new Error(`API Error: ${response.status}: ${errorBody.error || response.statusText} `);
+    const text = await response.text()
+    console.error('CoinGecko Error URL:', url)
+    console.error('CoinGecko Response:', text)
+    throw new Error(
+      `API Error: ${response.status} ${response.statusText}`
+    )
   }
 
-  return response.json();
+  return response.json()
 }
 
-export async function getPools(
-  id: string,
-  network?: string | null,
-  contractAddress?: string | null,
-): Promise<PoolData> {
-  const fallback: PoolData = {
-    id: '',
-    address: '',
-    name: '',
-    network: '',
-  };
-
-  if (network && contractAddress) {
-    const poolData = await fetcher<{ data: PoolData[] }>(
-      `/onchain/networks/${network}/tokens/${contractAddress}/pools`,
-    );
-
-    return poolData.data?.[0] ?? fallback;
-  }
-
-  try {
-    const poolData = await fetcher<{ data: PoolData[] }>('/onchain/search/pools', { query: id });
-
-    return poolData.data?.[0] ?? fallback;
-  } catch {
-    return fallback;
-  }
+/**
+ * PRO FEATURE DISABLED (Free plan)
+ */
+export async function getPools() {
+  return null
 }

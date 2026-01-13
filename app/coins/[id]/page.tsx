@@ -1,60 +1,48 @@
 import React from 'react'
 import { fetcher } from '@/lib/coingecko.actions'
-import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import Converter from '@/components/Converter'
+import CandlestickChart from '@/components/CandlestickChart'
 
-const Page = async ({ params }: { params: { id: string } }) => {
-  const { id } = params
+type PageProps = {
+  params: {
+    id: string
+  }
+}
 
-  const [coinData] = await Promise.all([
-    fetcher<CoinDetailsData>(`coins/${id}`),
-  ])
+const Page = async ({ params }: PageProps) => {
+  const id = params.id   // ✅ DO NOT make this optional
 
-  const coinDetails = [
-    {
-      label: 'Market Cap',
-      value: formatCurrency(
-        coinData.market_data.market_cap.usd
-      ),
-    },
-    {
-      label: 'Market Cap Rank',
-      value: `# ${coinData.market_cap_rank}`,
-    },
-    {
-      label: 'Total Volume',
-      value: formatCurrency(
-        coinData.market_data.total_volume.usd
-      ),
-    },
-    {
-      label: 'Website',
-      value: '-',
-      link: coinData.links.homepage[0],
-      linkText: 'Homepage',
-    },
-    {
-      label: 'Explorer',
-      value: '-',
-      link: coinData.links.blockchain_site[0],
-      linkText: 'Explorer',
-    },
-    {
-      label: 'Community',
-      value: '-',
-      link: coinData.links.subreddit_url,
-      linkText: 'Community',
-    },
-  ]
+  let coinData: CoinDetailsData
+  let coinOHLCData: OHLCData[] = []
+
+  try {
+    ;[coinData, coinOHLCData] = await Promise.all([
+      fetcher<CoinDetailsData>(`coins/${id}`, undefined, 300),
+      fetcher<OHLCData[]>(`coins/${id}/ohlc`, {
+        vs_currency: 'usd',
+        days: 1,
+      }, 300),
+    ])
+  } catch (error) {
+    console.error('Failed to load coin:', error)
+
+    return (
+      <main className="p-10 text-center">
+        <h2>Failed to load coin data</h2>
+        <p>Please refresh or try again later.</p>
+      </main>
+    )
+  }
 
   return (
     <main id="coin-details-page">
       <section className="primary">
-        <h2 className="text-xl font-bold">
-          {coinData.name}
-        </h2>
+        <CandlestickChart data={coinOHLCData} coinId={id}>
+          <h2 className="text-xl font-bold">
+            {coinData.name}
+          </h2>
+        </CandlestickChart>
       </section>
 
       <section className="secondary">
@@ -64,31 +52,13 @@ const Page = async ({ params }: { params: { id: string } }) => {
           priceList={coinData.market_data.current_price}
         />
 
-        <div className="details">
-          <h4>Coin Details</h4>
-
-          <ul className="details-grid">
-            {coinDetails.map(
-              ({ label, value, link, linkText }, index) => (
-                <li key={index}>
-                  <p className={label}>{label}</p>
-
-                  {link ? (
-                    <div className="link">
-                      <Link href={link} target="_blank">
-                        {linkText || label}
-                      </Link>
-                      <ArrowUpRight size={16} />
-                    </div>
-                  ) : (
-                    <p className="text-base font-medium">
-                      {value}
-                    </p>
-                  )}
-                </li>
-              )
+        <div className="mt-4">
+          <p>
+            Market Cap:{' '}
+            {formatCurrency(
+              coinData.market_data.market_cap.usd
             )}
-          </ul>
+          </p>
         </div>
       </section>
     </main>
