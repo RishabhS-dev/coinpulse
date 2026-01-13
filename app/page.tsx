@@ -1,9 +1,25 @@
-import React from 'react'
+import CoinOverview from '@/components/home/CoinOverview';
+import TrendingCoins from '@/components/home/TrendingCoins';
+import React, { Suspense } from 'react'
 
-const page = () => {
+const Page = async () => {
   return (
-    <p className="text-2xl font-bold">Welcome to the Coinpulse App</p>
-  )
-}
+    <main className="main-container">
+      <section className="home-grid">
+        <Suspense fallback={<div>Loading Overview...</div>}>
+        <CoinOverview />
+        </Suspense>
 
-export default page
+        <Suspense fallback={<div>Loading Trending Coins...</div>}>
+        <TrendingCoins />
+        </Suspense>
+      </section>
+
+      <section className="w-full mt-7 space-y-4">
+        <p>Categories</p>
+      </section>
+    </main>
+  );
+};
+
+export default Page;
