@@ -1,102 +1,81 @@
-'use server'
+'use server';
 
-import qs from 'query-string'
+import qs from 'query-string';
 
-/**
- * IMPORTANT:
- * In .env.local use:
- *
- * COINGECKO_BASE_URL=https://api.coingecko.com/api/v3
- * COINGECKO_API_KEY=your_key_here
- */
+type QueryParams = Record<string, string | number | undefined>;
 
-const BASE_URL = process.env.COINGECKO_BASE_URL
-const API_KEY = process.env.COINGECKO_API_KEY
+interface CoinGeckoErrorBody {
+  error?: string;
+}
 
-if (!BASE_URL) throw new Error('Could not get base url')
-if (!API_KEY) throw new Error('Could not get api key')
+interface PoolData {
+  id: string;
+  address: string;
+  name: string;
+  network: string;
+}
 
-/**
- * Generic fetcher for CoinGecko API
- */
+const BASE_URL = process.env.COINGECKO_BASE_URL;
+const API_KEY = process.env.COINGECKO_API_KEY;
+
+if (!BASE_URL) throw new Error('Could not get base url');
+if (!API_KEY) throw new Error('Could not get api key');
+
 export async function fetcher<T>(
   endpoint: string,
   params?: QueryParams,
-  revalidate = 60
+  revalidate = 60,
 ): Promise<T> {
-  // ✅ Remove accidental leading slash to avoid double //
-  const safeEndpoint = endpoint.startsWith('/')
-    ? endpoint.slice(1)
-    : endpoint
-
   const url = qs.stringifyUrl(
     {
-      url: `${BASE_URL}/${safeEndpoint}`,
+      url: `${BASE_URL}/${endpoint}`,
       query: params,
     },
-    { skipEmptyString: true, skipNull: true }
-  )
+    { skipEmptyString: true, skipNull: true },
+  );
 
   const response = await fetch(url, {
     headers: {
-      // ✅ Correct CoinGecko header
       'x-cg-pro-api-key': API_KEY,
       'Content-Type': 'application/json',
     } as Record<string, string>,
     next: { revalidate },
-  })
+  });
 
   if (!response.ok) {
-    const errorBody: CoinGeckoErrorBody = await response
-      .json()
-      .catch(() => ({}))
+    const errorBody: CoinGeckoErrorBody = await response.json().catch(() => ({}));
 
-    throw new Error(
-      `API Error: ${response.status}: ${
-        errorBody?.error || response.statusText
-      }`
-    )
+    throw new Error(`API Error: ${response.status}: ${errorBody.error || response.statusText} `);
   }
 
-  return response.json()
+  return response.json();
 }
 
-/**
- * Get liquidity pool info
- */
 export async function getPools(
   id: string,
   network?: string | null,
-  contractAddress?: string | null
+  contractAddress?: string | null,
 ): Promise<PoolData> {
   const fallback: PoolData = {
     id: '',
     address: '',
     name: '',
     network: '',
-  }
+  };
 
   if (network && contractAddress) {
-    try {
-      const poolData = await fetcher<{ data: PoolData[] }>(
-        `onchain/networks/${network}/tokens/${contractAddress}/pools`
-      )
+    const poolData = await fetcher<{ data: PoolData[] }>(
+      `/onchain/networks/${network}/tokens/${contractAddress}/pools`,
+    );
 
-      return poolData.data?.[0] ?? fallback
-    } catch (error) {
-      console.error(error)
-      return fallback
-    }
+    return poolData.data?.[0] ?? fallback;
   }
 
   try {
-    const poolData = await fetcher<{ data: PoolData[] }>(
-      'onchain/search/pools',
-      { query: id }
-    )
+    const poolData = await fetcher<{ data: PoolData[] }>('/onchain/search/pools', { query: id });
 
-    return poolData.data?.[0] ?? fallback
+    return poolData.data?.[0] ?? fallback;
   } catch {
-    return fallback
+    return fallback;
   }
 }
