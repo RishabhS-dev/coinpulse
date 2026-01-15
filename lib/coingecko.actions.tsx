@@ -2,34 +2,17 @@
 
 import qs from 'query-string'
 
-type QueryParams = Record<string, string | number | undefined>
+const BASE_URL = process.env.COINGECKO_BASE_URL || 'https://api.coingecko.com/api/v3'
 
-const BASE_URL = process.env.COINGECKO_BASE_URL
-
-if (!BASE_URL) {
-  throw new Error('Missing COINGECKO_BASE_URL in .env.local')
-}
-
-/**
- * Public CoinGecko Fetcher (FREE PLAN SAFE)
- */
 export async function fetcher<T>(
   endpoint: string,
-  params?: QueryParams,
-  revalidate = 60
+  params?: Record<string, any>,
+  revalidate = 300, // ✅ strong caching for free tier
 ): Promise<T> {
-  // remove accidental leading slash
-  const safeEndpoint = endpoint.startsWith('/')
-    ? endpoint.slice(1)
-    : endpoint
-
-  const url = qs.stringifyUrl(
-    {
-      url: `${BASE_URL}/${safeEndpoint}`,
-      query: params,
-    },
-    { skipEmptyString: true, skipNull: true }
-  )
+  const url = qs.stringifyUrl({
+    url: `${BASE_URL}/${endpoint}`,
+    query: params,
+  })
 
   const response = await fetch(url, {
     next: { revalidate },
@@ -39,17 +22,8 @@ export async function fetcher<T>(
     const text = await response.text()
     console.error('CoinGecko Error URL:', url)
     console.error('CoinGecko Response:', text)
-    throw new Error(
-      `API Error: ${response.status} ${response.statusText}`
-    )
+    throw new Error(`API Error: ${response.status}`)
   }
 
   return response.json()
-}
-
-/**
- * PRO FEATURE DISABLED (Free plan)
- */
-export async function getPools() {
-  return null
 }

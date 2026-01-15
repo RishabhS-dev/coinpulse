@@ -25,15 +25,13 @@ const CandlestickChart = ({
 }: CandlestickChartProps) => {
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
-  const candleSeriesRef =
-    useRef<ISeriesApi<'Candlestick'> | null>(null)
-  const prevOhlcDataLength = useRef<number>(data?.length || 0)
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
 
   const [period, setPeriod] = useState(initialPeriod)
   const [ohlcData, setOhlcData] = useState<OHLCData[]>(data ?? [])
   const [isPending, startTransition] = useTransition()
 
-  // ✅ FREE API SAFE FETCH
+  // ✅ SAFE FREE API FETCH
   const fetchOHLCData = async (selectedPeriod: Period) => {
     try {
       const { days } = PERIOD_CONFIG[selectedPeriod]
@@ -43,7 +41,8 @@ const CandlestickChart = ({
         {
           vs_currency: 'usd',
           days,
-        }
+        },
+        300
       )
 
       startTransition(() => {
@@ -57,10 +56,12 @@ const CandlestickChart = ({
   const handlePeriodChange = (newPeriod: Period) => {
     if (newPeriod === period) return
     setPeriod(newPeriod)
-    setTimeout(() => fetchOHLCData(newPeriod), 800)
 
+    // small delay to avoid spam
+    setTimeout(() => fetchOHLCData(newPeriod), 600)
   }
 
+  // ✅ INIT CHART ONCE
   useEffect(() => {
     const container = chartContainerRef.current
     if (!container) return
@@ -76,20 +77,6 @@ const CandlestickChart = ({
       CandlestickSeries,
       getCandlestickConfig()
     )
-
-    const convertedToSeconds = ohlcData.map(
-      (item) =>
-        [
-          Math.floor(item[0] / 1000),
-          item[1],
-          item[2],
-          item[3],
-          item[4],
-        ] as OHLCData
-    )
-
-    series.setData(convertOHLCData(convertedToSeconds))
-    chart.timeScale().fitContent()
 
     chartRef.current = chart
     candleSeriesRef.current = series
@@ -108,7 +95,27 @@ const CandlestickChart = ({
       chartRef.current = null
       candleSeriesRef.current = null
     }
-  }, [height, period, ohlcData])
+  }, [])
+
+  // ✅ UPDATE DATA ONLY (not recreate chart)
+  useEffect(() => {
+    if (!candleSeriesRef.current || !ohlcData.length) return
+
+    const convertedToSeconds = ohlcData.map(
+      (item) =>
+        [
+          Math.floor(item[0] / 1000),
+          item[1],
+          item[2],
+          item[3],
+          item[4],
+        ] as OHLCData
+    )
+
+    const converted = convertOHLCData(convertedToSeconds)
+    candleSeriesRef.current.setData(converted)
+    chartRef.current?.timeScale().fitContent()
+  }, [ohlcData])
 
   return (
     <div id="candlestick-chart">
