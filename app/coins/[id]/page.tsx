@@ -1,93 +1,100 @@
-import React from 'react'
 import { fetcher } from '@/lib/coingecko.actions'
+import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import Converter from '@/components/Converter'
+import CandlestickChart from '@/components/CandlestickChart'
 
 const Page = async ({ params }: { params: { id: string } }) => {
   const { id } = params
 
-  const [coinData] = await Promise.all([
-    fetcher<CoinDetailsData>(`coins/${id}`),
-  ])
+  let coin: CoinMarketData | null = null
+  let ohlcData: OHLCData[] = []
 
-  const coinDetails = [
-    {
-      label: 'Market Cap',
-      value: formatCurrency(
-        coinData.market_data.market_cap.usd
-      ),
-    },
-    {
-      label: 'Market Cap Rank',
-      value: `# ${coinData.market_cap_rank}`,
-    },
-    {
-      label: 'Total Volume',
-      value: formatCurrency(
-        coinData.market_data.total_volume.usd
-      ),
-    },
-    {
-      label: 'Website',
-      value: '-',
-      link: coinData.links.homepage[0],
-      linkText: 'Homepage',
-    },
-    {
-      label: 'Explorer',
-      value: '-',
-      link: coinData.links.blockchain_site[0],
-      linkText: 'Explorer',
-    },
-    {
-      label: 'Community',
-      value: '-',
-      link: coinData.links.subreddit_url,
-      linkText: 'Community',
-    },
-  ]
+  try {
+    const [marketRes, ohlc] = await Promise.all([
+      fetcher<CoinMarketData[]>(`coins/markets`, {
+        vs_currency: 'usd',
+        ids: id,
+      }),
+
+      fetcher<OHLCData[]>(`coins/${id}/ohlc`, {
+        vs_currency: 'usd',
+        days: 1,
+      }),
+    ])
+
+    coin = marketRes[0] ?? null
+    ohlcData = ohlc
+  } catch (err) {
+    console.error('Failed to load coin:', id, err)
+  }
+
+  if (!coin) {
+    return (
+      <main className="p-10 text-center">
+        <h2 className="text-xl font-bold">Invalid Coin</h2>
+        <p className="mt-2 text-gray-400">
+          Please go back and try another coin.
+        </p>
+        <Link href="/coins" className="text-blue-500 underline mt-4 block">
+          Back to All Coins
+        </Link>
+      </main>
+    )
+  }
 
   return (
     <main id="coin-details-page">
-      <section className="primary">
-        <h2 className="text-xl font-bold">
-          {coinData.name}
-        </h2>
+      <section className="primary mb-10">
+        <CandlestickChart data={ohlcData} coinId={id}>
+          <div className="flex items-center gap-4">
+            <Image
+              src={coin.image}
+              alt={coin.name}
+              width={40}
+              height={40}
+            />
+            <div>
+              <h2 className="text-xl font-bold">{coin.name}</h2>
+              <p className="text-gray-400">
+                {formatCurrency(coin.current_price)}
+              </p>
+            </div>
+          </div>
+        </CandlestickChart>
       </section>
 
       <section className="secondary">
         <Converter
-          symbol={coinData.symbol}
-          icon={coinData.image.small}
-          priceList={coinData.market_data.current_price}
+          symbol={coin.symbol}
+          icon={coin.image}
+          priceList={{ usd: coin.current_price }}
         />
 
-        <div className="details">
-          <h4>Coin Details</h4>
+        <div className="details mt-8">
+          <h4 className="mb-4 font-semibold">Coin Details</h4>
 
           <ul className="details-grid">
-            {coinDetails.map(
-              ({ label, value, link, linkText }, index) => (
-                <li key={index}>
-                  <p className={label}>{label}</p>
+            <li>
+              <p className="text-sm text-gray-400">Market Cap</p>
+              <p className="font-medium">
+                {formatCurrency(coin.market_cap)}
+              </p>
+            </li>
 
-                  {link ? (
-                    <div className="link">
-                      <Link href={link} target="_blank">
-                        {linkText || label}
-                      </Link>
-                      <ArrowUpRight size={16} />
-                    </div>
-                  ) : (
-                    <p className="text-base font-medium">
-                      {value}
-                    </p>
-                  )}
-                </li>
-              )
-            )}
+            <li>
+              <p className="text-sm text-gray-400">Rank</p>
+              <p className="font-medium">#{coin.market_cap_rank}</p>
+            </li>
+
+            <li>
+              <p className="text-sm text-gray-400">24h Change</p>
+              <p className="font-medium">
+                {coin.price_change_percentage_24h.toFixed(2)}%
+              </p>
+            </li>
           </ul>
         </div>
       </section>
